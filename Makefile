@@ -2,28 +2,26 @@ LINKER = linker.ld
 CC= riscv64-unknown-elf-gcc
 CFLAGS =  -nostdlib -ffreestanding -mcmodel=medany
 LDFLAGS = -T ${LINKER}
-OS_BIN = os.bin
 OS_ELF = os.elf
 GDB = gdb-multiarch
-KERNEL_ENTRY_PA = 0x80200000
+SRC = hello.c start.S
+all: elf
 
-all: bin
-
-elf: hello.c start.S ${LINKER}
+elf: $(SRC) ${LINKER}
 	${CC} ${CFLAGS} ${LDFLAGS} \
-		start.S hello.c -o os.elf
-bin: elf
-	riscv64-unknown-elf-objcopy -O binary os.elf ${OS_BIN}
+		$(SRC) -o $(OS_ELF)
 
-# run: all
-# 	qemu-system-riscv64 -machine virt -bios default -device loader,file=$(OS_BIN),addr=$(KERNEL_ENTRY_PA) -nographic -global virt-machine.opensbi-next-addr=0x80200000
 run: all
-	qemu-system-riscv64 -machine virt -bios default -nographic -kernel $(OS_ELF)
+	qemu-system-riscv64 -machine virt \
+	    -bios rustsbi-qemu.bin \
+	    -device loader,file=$(OS_ELF) \
+	    -nographic
 
 debug: all
-	qemu-system-riscv64 -machine virt -bios default \
-		-device loader,file=${OS_BIN},addr=${KERNEL_ENTRY_PA} \
-		-nographic \
+	qemu-system-riscv64 -machine virt \
+	    -bios rustsbi-qemu.bin \
+	    -device loader,file=$(OS_ELF) \
+	    -nographic \
 		-s -S
 
 gdb: 
