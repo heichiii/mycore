@@ -2,9 +2,11 @@ LINKER = linker.ld
 CC= riscv64-unknown-elf-gcc
 CFLAGS =  -nostdlib -ffreestanding -mcmodel=medany
 LDFLAGS = -T ${LINKER}
-OS_ELF = os.elf
+OS_ELF = build/os.elf
 GDB = gdb-multiarch
-SRC = hello.c start.S
+SRC = src/hello.c src/start.S
+BOOTLOADER = bootloader/rustsbi-qemu.bin
+
 all: elf
 
 elf: $(SRC) ${LINKER}
@@ -13,13 +15,13 @@ elf: $(SRC) ${LINKER}
 
 run: all
 	qemu-system-riscv64 -machine virt \
-	    -bios rustsbi-qemu.bin \
+	    -bios $(BOOTLOADER) \
 	    -device loader,file=$(OS_ELF) \
 	    -nographic
 
 debug: all
 	qemu-system-riscv64 -machine virt \
-	    -bios rustsbi-qemu.bin \
+	    -bios $(BOOTLOADER) \
 	    -device loader,file=$(OS_ELF) \
 	    -nographic \
 		-s -S
