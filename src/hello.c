@@ -2,6 +2,9 @@
 
 #define SBI_LEGACY_PUTCHAR 0x01
 
+#define SYS_WRITE  64
+#define SYS_EXIT   93
+
 void sbi_putchar(char c) {
     register uint64_t a0 asm("a0") = (uint64_t)c;
     register uint64_t a7 asm("a7") = SBI_LEGACY_PUTCHAR;
@@ -85,6 +88,34 @@ void trap_init(void) {
     // asm volatile("csrsi sstatus, 0x2");                // set SIE in sstatus
 }
 
+void sys_write(struct trapframe *tf) {
+    int fd = (int)tf->a0;
+    const char *buf = (const char *)tf->a1;
+    uint64_t count = tf->a2;
+
+    if (fd == 1 || fd == 2) {
+        for (uint64_t i = 0; i < count; i++) {
+            sbi_putchar(buf[i]);
+        }
+        tf->a0 = count;
+    } else {
+        tf->a0 = -1;
+    }
+}
+
+void sys_exit(struct trapframe *tf) {
+    int status = (int)tf->a0;
+    sbi_puts("[kernel] user program exited with status: ");
+    if (status == 0) {
+        sbi_puts("0\n");
+    } else {
+        sbi_putchar('0' + (status / 10));
+        sbi_putchar('0' + (status % 10));
+        sbi_putchar('\n');
+    }
+    sbi_shutdown();
+}
+
 void trap_handler(struct trapframe *tf) {
     uint64_t scause = tf->scause;
     uint64_t cause = scause & ~(1ULL << 63);
@@ -105,10 +136,20 @@ void trap_handler(struct trapframe *tf) {
 
     switch (cause) {
     case 8: /* environment call from U-mode */
-        sbi_puts("[trap] syscall from user mode (a7=");
-        sbi_putchar('0' + (tf->a7 / 10));
-        sbi_putchar('0' + (tf->a7 % 10));
-        sbi_puts(")\n");
+        switch (tf->a7) {
+        case SYS_WRITE:
+            sys_write(tf);
+            break;
+        case SYS_EXIT:
+            sys_exit(tf);
+            break;
+        default:
+            sbi_puts("[trap] unknown syscall (a7=");
+            sbi_putchar('0' + (tf->a7 / 10));
+            sbi_putchar('0' + (tf->a7 % 10));
+            sbi_puts(")\n");
+            break;
+        }
         tf->sepc += 4;
         break;
     case 12: /* instruction page fault */
@@ -133,13 +174,24 @@ void trap_handler(struct trapframe *tf) {
     }
 }
 
+extern uint8_t _user_elf_start[];
+extern void enter_user(uint64_t entry, uint64_t sp);
+
+static void memcpy(void *dst, const void *src, uint64_t n) {
+    char *d = (char *)dst;
+    const char *s = (const char *)src;
+    for (uint64_t i = 0; i < n; i++) d[i] = s[i];
+}
+
+static void load_user(void) {
+    memcpy((void *)0x80400000, _user_elf_start + 0x1000, 0x1b38);
+}
+
 void main() {
     sbi_puts("Hello from kernel!\n");
     trap_init();
-    sbi_puts("Trap handler installed.\n");
-    sbi_puts("If you see this, kernel is running!\n");
-    sbi_shutdown();
-
+    load_user();
+    enter_user(0x80400000, 0x80500000);
     while(1) {
         asm volatile("wfi");
     }

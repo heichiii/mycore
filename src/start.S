@@ -97,6 +97,24 @@ trap_entry:
 	ld sp, 8(sp)
 	sret
 
+.section .text
+.globl enter_user
+enter_user:
+	csrw sepc, a0
+	mv sp, a1
+	li t0, 0x100
+	csrc sstatus, t0
+	li t0, 0x20
+	csrs sstatus, t0
+	sret
+
+.section .rodata.user_elf, "a"
+.globl _user_elf_start
+_user_elf_start:
+	.incbin "user/build/riscv64/ch2b_hello_world"
+.globl _user_elf_end
+_user_elf_end:
+
 .section .bss
 .align 4
 _stack_lower_bound:

@@ -4,3 +4,5 @@
 3. How to use asm?register asm;inline asm
 ## 7-19
 4. musl staic link executable
+## 7-20
+5. mem mapping of rv64
