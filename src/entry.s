@@ -7,6 +7,7 @@ kernel_start:
 1:  j 1b
 
 .section .text
+.align 2
 .globl trap_entry
 trap_entry:
 	csrw sscratch, sp
@@ -111,7 +112,7 @@ enter_user:
 .section .rodata.user_elf, "a"
 .globl _user_elf_start
 _user_elf_start:
-	.incbin "mymusl/my_hello.elf"
+	.incbin "mymusl/build/hello.elf"
 .globl _user_elf_end
 _user_elf_end:
 

@@ -1,20 +1,12 @@
-## 7-18
-1. opensbi can't jump to 0x80200000, $a2 = 0x07, cpu can't jump there so that enter exception.(solved:opensbi is different with rustsbi-qemu.vin)
-2. Why can't put stack frame in data section? What if put it in bss but dont clear it?(solved: data section increase the size of elf, it's fine to not clearing bss)
-3. How to use asm?register asm;inline asm
-## 7-19
-4. musl staic link executable
-## 7-20
-5. mem mapping of rv64
-## 7-21
-6. main need a ret addr, _start dont.
-7. kernel's main and user app's main
-8. sbi things
-'''
-struct sbiret {
-    long error;
-    long value;
-};
+#include "sbi.h"
+#include <stdint.h>
+#include <stddef.h>
+
+#define SBI_LEGACY_PUTCHAR    0x01
+#define SBI_EXT_SRST          0x53525354
+#define SBI_SRST_RESET        0x0
+#define SBI_SRST_RESET_TYPE_SHUTDOWN 0x0
+#define SBI_SRST_RESET_REASON_NONE   0x0
 
 struct sbiret sbi_ecall(int ext, int fid, unsigned long arg0,
                         unsigned long arg1, unsigned long arg2,
@@ -38,7 +30,22 @@ struct sbiret sbi_ecall(int ext, int fid, unsigned long arg0,
     ret.value = a1;
     return ret;
 }
-'''
-9. ELF layout
-10. musl syscalls, _start_c
-11. align
+
+void sbi_putchar(char c)
+{
+    sbi_ecall(SBI_LEGACY_PUTCHAR, 0, (unsigned long)c, 0, 0, 0, 0, 0);
+}
+
+void sbi_puts(const char *str)
+{
+    while (*str) {
+        sbi_putchar(*str++);
+    }
+}
+
+void sbi_shutdown()
+{
+    sbi_ecall(SBI_EXT_SRST, SBI_SRST_RESET,
+              SBI_SRST_RESET_TYPE_SHUTDOWN, SBI_SRST_RESET_REASON_NONE,
+              0, 0, 0, 0);
+}
