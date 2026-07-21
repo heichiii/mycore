@@ -111,7 +111,7 @@ enter_user:
 .section .rodata.user_elf, "a"
 .globl _user_elf_start
 _user_elf_start:
-	.incbin "user/build/riscv64/ch2b_hello_world"
+	.incbin "mymusl/my_hello.elf"
 .globl _user_elf_end
 _user_elf_end:
 

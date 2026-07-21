@@ -2,7 +2,9 @@
 
 #define SBI_LEGACY_PUTCHAR 0x01
 
+#define SYS_IOCTL  29
 #define SYS_WRITE  64
+#define SYS_WRITEV 66
 #define SYS_EXIT   93
 
 void sbi_putchar(char c) {
@@ -137,9 +139,26 @@ void trap_handler(struct trapframe *tf) {
     switch (cause) {
     case 8: /* environment call from U-mode */
         switch (tf->a7) {
+        case SYS_IOCTL:
+            tf->a0 = 0;
+            break;
         case SYS_WRITE:
             sys_write(tf);
             break;
+        case SYS_WRITEV: {
+            struct iovec { void *base; uint64_t len; };
+            struct iovec *iov = (struct iovec *)tf->a1;
+            int iovcnt = (int)tf->a2;
+            uint64_t total = 0;
+            for (int i = 0; i < iovcnt; i++) {
+                char *buf = (char *)iov[i].base;
+                for (uint64_t j = 0; j < iov[i].len; j++)
+                    sbi_putchar(buf[j]);
+                total += iov[i].len;
+            }
+            tf->a0 = total;
+            break;
+        }
         case SYS_EXIT:
             sys_exit(tf);
             break;
@@ -183,8 +202,14 @@ static void memcpy(void *dst, const void *src, uint64_t n) {
     for (uint64_t i = 0; i < n; i++) d[i] = s[i];
 }
 
+static void memset(void *dst, int c, uint64_t n) {
+    char *d = (char *)dst;
+    for (uint64_t i = 0; i < n; i++) d[i] = (char)c;
+}
+
 static void load_user(void) {
-    memcpy((void *)0x80400000, _user_elf_start + 0x1000, 0x1b38);
+    memcpy((void *)0x80400000, _user_elf_start + 0x1000, 0xc68);
+    memset((void *)(0x80400000 + 0xc68), 0, 0x1108 - 0xc68);
 }
 
 void main() {

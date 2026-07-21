@@ -6,3 +6,6 @@
 4. musl staic link executable
 ## 7-20
 5. mem mapping of rv64
+## 7-21
+6. main need a ret addr, _start dont.
+7. kernel's main and user app's main
