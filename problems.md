@@ -39,6 +39,35 @@ struct sbiret sbi_ecall(int ext, int fid, unsigned long arg0,
     return ret;
 }
 '''
-9. ELF layout
-10. musl syscalls, _start_c
-11. align
+
+## 7-22
+
+9. musl syscalls, _start_c
+10. align
+11. gcc a.c -lm, gcc a.c, gcc -lm a.c
+12. teneative definition,C language
+13. inline asm (the note)
+
+## 7-23
+
+13. ELF
+
+    1. layout :elf header,section header,program header(segment)
+
+    1. type:elf;segment;
+
+    1. rela
+
+14. **Common Automatic Variables:**
+
+| Variable | Meaning                             |
+| -------- | ----------------------------------- |
+| `$@`     | Target name                         |
+| `$<`     | First prerequisite                  |
+| `$^`     | All prerequisites (deduplicated)    |
+| `$+`     | All prerequisites (with duplicates) |
+| `$?`     | Prerequisites newer than target     |
+
+15. mymusl exec segment fault, user exec ok
+
+## 7-24

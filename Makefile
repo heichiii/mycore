@@ -12,6 +12,10 @@ OBJ = build/entry.o build/main.o build/load_single_app.o build/sbi.o build/sysca
 
 all: elf
 
+build/entry.o: src/entry.s mymusl/build/hello.elf user/target/elf/ch2b_exit user/target/elf/ch2b_power
+	mkdir -p build
+	${CC} ${CFLAGS} -c $< -o $@
+
 build/%.o: src/%.s
 	mkdir -p build
 	${CC} ${CFLAGS} -c $< -o $@

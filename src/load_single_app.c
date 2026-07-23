@@ -1,7 +1,21 @@
 #include "load_single_app.h"
+#include "sbi.h"
+#include "trap.h"
 #include <stdint.h>
 
-extern uint8_t _user_elf_start[];
+extern uint8_t _user_elf_hello[];
+extern uint8_t _user_elf_exit[];
+extern uint8_t _user_elf_power[];
+
+#define USER_STACK 0x80500000
+#define APP_COUNT 3
+
+static const uint8_t *const apps[APP_COUNT] = {
+    _user_elf_hello,
+    _user_elf_exit,
+    _user_elf_power,
+};
+static unsigned int current_app;
 
 #define PT_NULL    0
 #define PT_LOAD    1
@@ -77,8 +91,8 @@ static uint64_t elf_file_offset(Elf64_Phdr *phdrs, uint16_t phnum, uint64_t vadd
     return 0;
 }
 
-uint64_t load_user(void) {
-    Elf64_Ehdr *ehdr = (Elf64_Ehdr *)_user_elf_start;
+uint64_t load_user(const uint8_t *image) {
+    Elf64_Ehdr *ehdr = (Elf64_Ehdr *)image;
 
     if (ehdr->e_ident[0] != 0x7f ||
         ehdr->e_ident[1] != 'E' ||
@@ -87,7 +101,7 @@ uint64_t load_user(void) {
         return 0;
     }
 
-    Elf64_Phdr *phdr = (Elf64_Phdr *)(_user_elf_start + ehdr->e_phoff);
+    Elf64_Phdr *phdr = (Elf64_Phdr *)(image + ehdr->e_phoff);
     uint16_t phnum = ehdr->e_phnum;
 
     for (uint16_t i = 0; i < phnum; i++) {
@@ -97,7 +111,7 @@ uint64_t load_user(void) {
             continue;
 
         uint8_t *dst = (uint8_t *)(uintptr_t)phdr[i].p_vaddr;
-        uint8_t *src = _user_elf_start + phdr[i].p_offset;
+        uint8_t *src = (uint8_t *)image + phdr[i].p_offset;
 
         memcpy(dst, src, phdr[i].p_filesz);
 
@@ -113,9 +127,9 @@ uint64_t load_user(void) {
         if (phdr[i].p_type != PT_DYNAMIC)
             continue;
 
-        Elf64_Dyn *dyn = (Elf64_Dyn *)_user_elf_start;
+        Elf64_Dyn *dyn = (Elf64_Dyn *)image;
         uint64_t dyn_off = elf_file_offset(phdr, phnum, phdr[i].p_vaddr);
-        dyn = (Elf64_Dyn *)(_user_elf_start + dyn_off);
+        dyn = (Elf64_Dyn *)(image + dyn_off);
         uint64_t dyn_count = phdr[i].p_filesz / sizeof(Elf64_Dyn);
 
         for (uint64_t j = 0; j < dyn_count; j++) {
@@ -133,7 +147,7 @@ uint64_t load_user(void) {
 
     if (rela_addr && rela_size && rela_ent >= sizeof(Elf64_Rela)) {
         uint64_t rela_off = elf_file_offset(phdr, phnum, rela_addr);
-        Elf64_Rela *rela = (Elf64_Rela *)(_user_elf_start + rela_off);
+        Elf64_Rela *rela = (Elf64_Rela *)(image + rela_off);
         uint64_t rela_count = rela_size / rela_ent;
 
         for (uint64_t i = 0; i < rela_count; i++) {
@@ -164,4 +178,25 @@ uint64_t load_user(void) {
     }
 
     return ehdr->e_entry;
+}
+
+int batch_next(struct trapframe *tf) {
+    if (current_app + 1 >= APP_COUNT) {
+        sbi_puts("[kernel] batch complete\n");
+        sbi_shutdown();
+        return 0;
+    }
+
+    current_app++;
+    uint64_t entry = load_user(apps[current_app]);
+    if (entry == 0) {
+        sbi_puts("[kernel] invalid batch application\n");
+        sbi_shutdown();
+        return 0;
+    }
+
+    // trap_handler advances sepc after returning from every syscall.
+    tf->sepc = entry - 4;
+    tf->sp = USER_STACK;
+    return 1;
 }

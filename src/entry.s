@@ -110,15 +110,19 @@ enter_user:
 	sret
 
 .section .rodata.user_elf, "a"
-.globl _user_elf_start
-_user_elf_start:
+.align 3
+.globl _user_elf_hello
+_user_elf_hello:
 	.incbin "mymusl/build/hello.elf"
-.globl _user_elf_end
-_user_elf_end:
+.globl _user_elf_exit
+_user_elf_exit:
+	.incbin "user/target/elf/ch2b_exit"
+.globl _user_elf_power
+_user_elf_power:
+	.incbin "user/target/elf/ch2b_power"
 
 .section .bss
 .align 4
 _stack_lower_bound:
 	.space 4096
 _stack_top:
-

@@ -1,5 +1,6 @@
 #include "syscall.h"
 #include "sbi.h"
+#include "load_single_app.h"
 void sys_write(struct trapframe *tf) {
     int fd = (int)tf->a0;
     const char *buf = (const char *)tf->a1;
@@ -25,5 +26,5 @@ void sys_exit(struct trapframe *tf) {
         sbi_putchar('0' + (status % 10));
         sbi_putchar('\n');
     }
-    sbi_shutdown();
+    batch_next(tf);
 }
