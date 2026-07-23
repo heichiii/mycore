@@ -1,6 +1,6 @@
 #include "syscall.h"
 #include "sbi.h"
-#include "load_single_app.h"
+#include "batch.h"
 void sys_write(struct trapframe *tf) {
     int fd = (int)tf->a0;
     const char *buf = (const char *)tf->a1;

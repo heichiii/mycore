@@ -1,4 +1,4 @@
-#include "load_single_app.h"
+#include "batch.h"
 #include "sbi.h"
 #include "trap.h"
 #include <stdint.h>

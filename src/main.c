@@ -1,6 +1,6 @@
 #include "sbi.h"
 #include "trap.h"
-#include "load_single_app.h"
+#include "batch.h"
 
 extern uint8_t _user_elf_hello[];
 
