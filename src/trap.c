@@ -32,12 +32,16 @@ void trap_handler(struct trapframe *tf) {
 
     switch (cause) {
     case 8: /* environment call from U-mode */
+        tf->sepc += 4;
         switch (tf->a7) {
         case SYS_IOCTL:
             tf->a0 = 0;
             break;
         case SYS_WRITE:
             sys_write(tf);
+            break;
+        case SYS_sched_yield:
+            sys_yield(tf);
             break;
         case SYS_WRITEV: {
             struct iovec { void *base; uint64_t len; };
@@ -90,7 +94,6 @@ void trap_handler(struct trapframe *tf) {
             tf->a0 = -ENOSYS;
             break;
         }
-        tf->sepc += 4;
         break;
     case 12: /* instruction page fault */
         sbi_puts("[trap] instruction page fault\n");

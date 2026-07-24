@@ -114,12 +114,15 @@ enter_user:
 .globl _user_elf_hello
 _user_elf_hello:
 	.incbin "mymusl/build/hello.elf"
-.globl _user_elf_exit
-_user_elf_exit:
-	.incbin "user/target/elf/ch2b_exit"
-.globl _user_elf_power
-_user_elf_power:
-	.incbin "user/target/elf/ch2b_power"
+.globl _user_elf_yield0
+_user_elf_yield0:
+    .incbin "user/build/riscv64/ch3b_yield0"
+.globl _user_elf_yield1
+_user_elf_yield1:
+    .incbin "user/build/riscv64/ch3b_yield1"
+.globl _user_elf_yield2
+_user_elf_yield2:
+    .incbin "user/build/riscv64/ch3b_yield2"
 
 .section .bss
 .align 4

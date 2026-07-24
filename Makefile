@@ -12,7 +12,7 @@ OBJ = build/entry.o build/main.o build/batch.o build/sbi.o build/syscall.o build
 
 all: elf
 
-build/entry.o: src/entry.s mymusl/build/hello.elf user/target/elf/ch2b_exit user/target/elf/ch2b_power
+build/entry.o: src/entry.s mymusl/build/hello.elf user/build/riscv64/ch3b_yield0 user/build/riscv64/ch3b_yield1 user/build/riscv64/ch3b_yield2
 	mkdir -p build
 	${CC} ${CFLAGS} -c $< -o $@
 

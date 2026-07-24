@@ -17,14 +17,9 @@ void sys_write(struct trapframe *tf) {
 }
 
 void sys_exit(struct trapframe *tf) {
-    int status = (int)tf->a0;
-    sbi_puts("[kernel] user program exited with status: ");
-    if (status == 0) {
-        sbi_puts("0\n");
-    } else {
-        sbi_putchar('0' + (status / 10));
-        sbi_putchar('0' + (status % 10));
-        sbi_putchar('\n');
-    }
-    batch_next(tf);
+    task_exit(tf);
+}
+
+void sys_yield(struct trapframe *tf) {
+    task_yield(tf);
 }
