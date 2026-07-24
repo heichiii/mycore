@@ -1,10 +1,17 @@
 #include <stdio.h>
 #include <sched.h>
+#include <limits.h>
 int main()
 {
+	int a = INT_MAX/40;
 	printf("hello:Hello World!\n");
-	printf("hello:Before yield.\n");
-	int y=sched_yield();
-	printf("hello:After yield, status:%d\n",y);
+	printf("hello:Before loop.\n");
+	while (a>0)
+	{
+		a--;
+	}
+	
+	printf("hello:Finish loop.\n");
+
 	return 0;
 }

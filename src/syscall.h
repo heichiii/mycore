@@ -15,6 +15,8 @@
 #define SYS_set_tid_address 96
 #define SYS_futex          98
 #define SYS_sched_yield    124
+#define SYS_rt_tgsigqueueinfo 240
+#define SYS_clone          220
 #define SYS_mmap          222
 
 #define ENOSYS  38

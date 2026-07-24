@@ -1,8 +1,34 @@
 #include "trap.h"
 #include "sbi.h"
 #include "syscall.h"
+#include "batch.h"
 
 void trap_entry();
+
+#define SIE_STIE (1ULL << 5)
+#define SSTATUS_SIE (1ULL << 1)
+#define TIMER_INTERVAL 100000ULL
+
+static uint64_t read_time(void)
+{
+    uint64_t value;
+    asm volatile("rdtime %0" : "=r"(value));
+    return value;
+}
+
+static void timer_init(void)
+{
+    asm volatile("csrs sie, %0" :: "r"(SIE_STIE));
+    asm volatile("csrs sstatus, %0" :: "r"(SSTATUS_SIE));
+    sbi_set_timer(read_time() + TIMER_INTERVAL);
+}
+
+static void print_hex(uint64_t value)
+{
+    static const char digits[] = "0123456789abcdef";
+    for (int shift = 12; shift >= 0; shift -= 4)
+        sbi_putchar(digits[(value >> shift) & 0xf]);
+}
 
 void trap_init()
 {
@@ -11,6 +37,7 @@ void trap_init()
         : 
         : "r"((uint64_t)trap_entry)
     );
+    timer_init();
 }
 void trap_handler(struct trapframe *tf) {
     uint64_t scause = tf->scause;
@@ -20,7 +47,8 @@ void trap_handler(struct trapframe *tf) {
     if (is_interrupt) {
         switch (cause) {
         case 5: /* supervisor timer interrupt */
-            sbi_puts("[trap] timer interrupt\n");
+            sbi_set_timer(read_time() + TIMER_INTERVAL);
+            task_schedule(tf);
             break;
         default:
             sbi_puts("[trap] unknown interrupt\n");
@@ -83,13 +111,21 @@ void trap_handler(struct trapframe *tf) {
         case SYS_futex:
             tf->a0 = 0;
             break;
+        case SYS_clone:
+            /* fork/clone is not implemented by this scheduler yet. */
+            tf->a0 = -ENOSYS;
+            break;
+        case SYS_rt_tgsigqueueinfo:
+            /* Signals are not implemented yet; report the standard error. */
+            tf->a0 = -ENOSYS;
+            break;
         case SYS_mmap:
             tf->a0 = -ENOMEM;
             break;
         default:
             sbi_puts("[trap] unknown syscall (a7=");
-            sbi_putchar('0' + (tf->a7 / 10));
-            sbi_putchar('0' + (tf->a7 % 10));
+            sbi_puts("0x");
+            print_hex(tf->a7);
             sbi_puts(")\n");
             tf->a0 = -ENOSYS;
             break;

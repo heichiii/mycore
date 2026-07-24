@@ -4,6 +4,8 @@
 
 #define SBI_LEGACY_PUTCHAR    0x01
 #define SBI_EXT_SRST          0x53525354
+#define SBI_EXT_TIME          0x54494d45
+#define SBI_TIME_SET_TIMER    0
 #define SBI_SRST_RESET        0x0
 #define SBI_SRST_RESET_TYPE_SHUTDOWN 0x0
 #define SBI_SRST_RESET_REASON_NONE   0x0
@@ -48,4 +50,10 @@ void sbi_shutdown()
     sbi_ecall(SBI_EXT_SRST, SBI_SRST_RESET,
               SBI_SRST_RESET_TYPE_SHUTDOWN, SBI_SRST_RESET_REASON_NONE,
               0, 0, 0, 0);
+}
+
+void sbi_set_timer(uint64_t time)
+{
+    sbi_ecall(SBI_EXT_TIME, SBI_TIME_SET_TIMER,
+              time, 0, 0, 0, 0, 0);
 }

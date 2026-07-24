@@ -270,7 +270,7 @@ static int next_ready(void)
     return -1;
 }
 
-void task_yield(struct trapframe *tf)
+void task_schedule(struct trapframe *tf)
 {
     int next;
     tasks[current_task].context = *tf;
@@ -284,6 +284,13 @@ void task_yield(struct trapframe *tf)
     current_task = next;
     tasks[current_task].state = TASK_RUNNING;
     *tf = tasks[current_task].context;
+}
+
+void task_yield(struct trapframe *tf)
+{
+    tf->sepc += 4;
+    tf->a0 = 0;
+    task_schedule(tf);
 }
 
 void task_exit(struct trapframe *tf)
