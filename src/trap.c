@@ -1,7 +1,7 @@
 #include "trap.h"
 #include "sbi.h"
 #include "syscall.h"
-#include "batch.h"
+#include "multi.h"
 
 void trap_entry();
 

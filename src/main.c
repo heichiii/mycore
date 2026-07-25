@@ -1,6 +1,6 @@
 #include "sbi.h"
 #include "trap.h"
-#include "batch.h"
+#include "multi.h"
 
 void main() {
     sbi_puts("Hello from kernel!\n");
