@@ -9,6 +9,7 @@ PHDRS {
 SECTIONS {
     /* 代码从 0x80000000 开始（QEMU virt 的 DRAM 起始地址） */
     . = 0x80200000;
+    _kernel_start = .;
     
     /* 代码段：只读 + 可执行 */
     .text : {
@@ -35,4 +36,6 @@ SECTIONS {
         *(.bss.*)
         *(COMMON)
     } :data  /* 放入 data 程序头（RW） */
+
+    _kernel_end = .;
 }

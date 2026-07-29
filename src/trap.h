@@ -40,3 +40,4 @@ struct trapframe {
 };
 
 void trap_init();
+void print_hex(uint64_t value);

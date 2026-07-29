@@ -74,6 +74,10 @@ struct sbiret sbi_ecall(int ext, int fid, unsigned long arg0,
 ## 7-24
 1. load
 2. trap context, trap handler stack
+## 7-26
+1. Sv39
+2. align
+## 7-27
 # Difference with rCore
 1. mymusl
 2. load way

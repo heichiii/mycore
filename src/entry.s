@@ -10,9 +10,13 @@ kernel_start:
 .align 2
 .globl trap_entry
 trap_entry:
-	csrw sscratch, sp
+	csrrw sp, sscratch, sp
 
 	addi sp, sp, -280
+	
+	# Enable supervisor access to user memory (SUM bit in sstatus)
+	li t0, 0x40000
+	csrs sstatus, t0
 
 	sd x1, 0(sp)
 	csrr t0, sscratch
@@ -95,6 +99,8 @@ trap_entry:
 	ld x30, 232(sp)
 	ld x31, 240(sp)
 
+	la t0, _stack_top
+	csrw sscratch, t0
 	ld sp, 8(sp)
 	sret
 
@@ -103,6 +109,8 @@ trap_entry:
 enter_user:
 	csrw sepc, a0
 	mv sp, a1
+	la t0, _stack_top
+	csrw sscratch, t0
 	li t0, 0x100
 	csrc sstatus, t0
 	li t0, 0x20
@@ -128,4 +136,7 @@ _user_elf_yield2:
 .align 4
 _stack_lower_bound:
 	.space 4096
+.globl _stack_top
 _stack_top:
+	/* Keep following kernel globals away from the trap stack. */
+	.space 4096

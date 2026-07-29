@@ -1,8 +1,10 @@
 #include <stdint.h>
+#include "vm.h"
 struct trapframe;
 extern uint8_t _user_elf_hello[];
 
-uint64_t load_user(const uint8_t *image, uint64_t runtime_base);
+uint64_t load_user(pagetable_t root, const uint8_t *image,
+                   uint64_t runtime_base);
 void task_init_all(void);
 void task_start(void);
 void task_yield(struct trapframe *tf);

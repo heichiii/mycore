@@ -6,9 +6,9 @@ OS_ELF = build/os.elf
 GDB = gdb-multiarch
 BOOTLOADER = bootloader/rustsbi-qemu.bin
 
-SRC_C = src/main.c src/multi.c src/sbi.c src/syscall.c src/trap.c
+SRC_C = src/main.c src/multi.c src/page.c src/sbi.c src/syscall.c src/trap.c src/vm.c
 SRC_ASM = src/entry.s
-OBJ = build/entry.o build/main.o build/multi.o build/sbi.o build/syscall.o build/trap.o
+OBJ = build/entry.o build/main.o build/multi.o build/page.o build/sbi.o build/syscall.o build/trap.o build/vm.o
 
 all: elf
 

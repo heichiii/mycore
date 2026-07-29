@@ -1,6 +1,8 @@
 #include "multi.h"
 #include "sbi.h"
 #include "trap.h"
+#include "page.h"
+#include "vm.h"
 #include <stdint.h>
 
 extern uint8_t _user_elf_hello[];
@@ -87,6 +89,7 @@ enum task_state {
 struct task {
     int id;
     enum task_state state;
+    pagetable_t pagetable;
     struct trapframe context;
 };
 
@@ -97,10 +100,10 @@ struct program {
 };
 
 static const struct program programs[MAX_TASKS] = {
-    {_user_elf_yield0, TASK1_BASE, TASK0_STACK},
-    {_user_elf_yield1, TASK2_BASE, TASK1_STACK},
-    {_user_elf_yield2, TASK3_BASE, TASK2_STACK},
-    {_user_elf_hello,  TASK0_BASE, TASK3_STACK},
+    {_user_elf_yield0, TASK1_BASE, TASK1_STACK},
+    {_user_elf_yield1, TASK2_BASE, TASK2_STACK},
+    {_user_elf_yield2, TASK3_BASE, TASK3_STACK},
+    {_user_elf_hello,  TASK0_BASE, TASK0_STACK},
 };
 
 static struct task tasks[MAX_TASKS];
@@ -118,6 +121,35 @@ static void memset(void *dst, int c, uint64_t n)
 {
     char *d = (char *)dst;
     for (uint64_t i = 0; i < n; i++) d[i] = (char)c;
+}
+
+static void copy_to_user(pagetable_t root, uint64_t va,
+                         const void *src, uint64_t n)
+{
+    const uint8_t *s = (const uint8_t *)src;
+    while (n) {
+        uint64_t pa = vm_translate(root, va);
+        uint64_t chunk = PAGE_SIZE - (va & (PAGE_SIZE - 1));
+        if (chunk > n)
+            chunk = n;
+        memcpy((void *)(uintptr_t)pa, s, chunk);
+        va += chunk;
+        s += chunk;
+        n -= chunk;
+    }
+}
+
+static void zero_user(pagetable_t root, uint64_t va, uint64_t n)
+{
+    while (n) {
+        uint64_t pa = vm_translate(root, va);
+        uint64_t chunk = PAGE_SIZE - (va & (PAGE_SIZE - 1));
+        if (chunk > n)
+            chunk = n;
+        memset((void *)(uintptr_t)pa, 0, chunk);
+        va += chunk;
+        n -= chunk;
+    }
 }
 
 static uint64_t elf_file_offset(Elf64_Phdr *phdrs, uint16_t phnum,
@@ -145,7 +177,8 @@ static uint64_t preferred_base(Elf64_Phdr *phdrs, uint16_t phnum)
     return base;
 }
 
-uint64_t load_user(const uint8_t *image, uint64_t runtime_base)
+uint64_t load_user(pagetable_t root, const uint8_t *image,
+                   uint64_t runtime_base)
 {
     Elf64_Ehdr *ehdr = (Elf64_Ehdr *)image;
     if (ehdr->e_ident[0] != 0x7f || ehdr->e_ident[1] != 'E' ||
@@ -171,11 +204,24 @@ uint64_t load_user(const uint8_t *image, uint64_t runtime_base)
             continue;
 
         uint64_t dst_addr = phdr[i].p_vaddr + bias;
-        uint8_t *dst = (uint8_t *)(uintptr_t)dst_addr;
-        memcpy(dst, image + phdr[i].p_offset, phdr[i].p_filesz);
+        uint64_t map_start = dst_addr & ~(PAGE_SIZE - 1);
+        uint64_t map_end = (dst_addr + phdr[i].p_memsz + PAGE_SIZE - 1) &
+                           ~(PAGE_SIZE - 1);
+        uint64_t flags = PTE_U | PTE_A;
+        if (phdr[i].p_flags & 4) flags |= PTE_R;
+        if (phdr[i].p_flags & 2) flags |= PTE_W | PTE_D;
+        if (phdr[i].p_flags & 1) flags |= PTE_X;
+        for (uint64_t va = map_start; va < map_end; va += PAGE_SIZE) {
+            void *page = alloc_page();
+            if (!page || vm_map(root, va, (uint64_t)(uintptr_t)page,
+                                PAGE_SIZE, flags) < 0)
+                return 0;
+        }
+        copy_to_user(root, dst_addr, image + phdr[i].p_offset,
+                     phdr[i].p_filesz);
         if (phdr[i].p_memsz > phdr[i].p_filesz)
-            memset(dst + phdr[i].p_filesz, 0,
-                   phdr[i].p_memsz - phdr[i].p_filesz);
+            zero_user(root, dst_addr + phdr[i].p_filesz,
+                      phdr[i].p_memsz - phdr[i].p_filesz);
     }
 
     uint64_t rela_addr = 0, rela_size = 0, rela_ent = 0;
@@ -203,9 +249,12 @@ uint64_t load_user(const uint8_t *image, uint64_t runtime_base)
         for (uint64_t i = 0; i < count; i++) {
             uint32_t type = (uint32_t)rela[i].r_info;
             if (type == R_RISCV_RELATIVE) {
-                uint64_t *ptr = (uint64_t *)(uintptr_t)
-                    (rela[i].r_offset + bias);
-                *ptr = (uint64_t)(rela[i].r_addend + (int64_t)bias);
+                uint64_t target = rela[i].r_offset + bias;
+                uint64_t pa = vm_translate(root, target);
+                if (!pa)
+                    return 0;
+                *(uint64_t *)(uintptr_t)pa =
+                    (uint64_t)(rela[i].r_addend + (int64_t)bias);
             }
         }
 
@@ -214,15 +263,17 @@ uint64_t load_user(const uint8_t *image, uint64_t runtime_base)
         for (uint16_t i = 0; i < ehdr->e_phnum; i++) {
             if (phdr[i].p_type != PT_DYNAMIC)
                 continue;
-            Elf64_Dyn *load_dyn = (Elf64_Dyn *)(uintptr_t)
-                (phdr[i].p_vaddr + bias);
+            uint64_t dyn_addr = phdr[i].p_vaddr + bias;
             uint64_t count_dyn = phdr[i].p_filesz / sizeof(Elf64_Dyn);
             for (uint64_t j = 0; j < count_dyn; j++) {
-                if (load_dyn[j].d_tag == DT_NULL)
+                uint64_t pa = vm_translate(root, dyn_addr +
+                                           j * sizeof(Elf64_Dyn));
+                Elf64_Dyn *load_dyn = (Elf64_Dyn *)(uintptr_t)pa;
+                if (load_dyn->d_tag == DT_NULL)
                     break;
-                if (load_dyn[j].d_tag == DT_RELA ||
-                    load_dyn[j].d_tag == DT_RELASZ)
-                    load_dyn[j].d_val = 0;
+                if (load_dyn->d_tag == DT_RELA ||
+                    load_dyn->d_tag == DT_RELASZ)
+                    load_dyn->d_val = 0;
             }
             break;
         }
@@ -243,13 +294,28 @@ static uint64_t user_sstatus(void)
 void task_init_all(void)
 {
     for (int i = 0; i < MAX_TASKS; i++) {
-        uint64_t entry = load_user(programs[i].image,
-                                   programs[i].runtime_base);
+        tasks[i].pagetable = vm_clone_kernel();
+        uint64_t entry = tasks[i].pagetable
+            ? load_user(tasks[i].pagetable, programs[i].image,
+                        programs[i].runtime_base)
+            : 0;
         tasks[i].id = i;
         tasks[i].state = entry ? TASK_READY : TASK_UNUSED;
         tasks[i].context.sepc = entry;
-        tasks[i].context.sp = programs[i].stack_top;
         tasks[i].context.sstatus = user_sstatus();
+        uint64_t stack_start = programs[i].stack_top - TASK_STACK_SIZE;
+        /* Map stack region including one page at top boundary */
+        for (uint64_t va = stack_start; entry && va <= programs[i].stack_top;
+             va += PAGE_SIZE) {
+            void *page = alloc_page();
+            if (!page || vm_map(tasks[i].pagetable, va,
+                               (uint64_t)(uintptr_t)page, PAGE_SIZE,
+                               PTE_R | PTE_W | PTE_U | PTE_A | PTE_D) < 0) {
+                tasks[i].state = TASK_UNUSED;
+            }
+        }
+        /* Stack grows down; initialize sp safely within mapped region */
+        tasks[i].context.sp = programs[i].stack_top - 16;
     }
     current_task = 0;
     tasks[0].state = TASK_RUNNING;
@@ -257,6 +323,7 @@ void task_init_all(void)
 
 void task_start(void)
 {
+    vm_activate(tasks[0].pagetable);
     enter_user(tasks[0].context.sepc, tasks[0].context.sp);
 }
 
@@ -283,6 +350,7 @@ void task_schedule(struct trapframe *tf)
     }
     current_task = next;
     tasks[current_task].state = TASK_RUNNING;
+    vm_activate(tasks[current_task].pagetable);
     *tf = tasks[current_task].context;
 }
 
@@ -305,5 +373,6 @@ void task_exit(struct trapframe *tf)
     }
     current_task = next;
     tasks[current_task].state = TASK_RUNNING;
+    vm_activate(tasks[current_task].pagetable);
     *tf = tasks[current_task].context;
 }

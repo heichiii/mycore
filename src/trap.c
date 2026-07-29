@@ -4,6 +4,7 @@
 #include "multi.h"
 
 void trap_entry();
+extern uint8_t _stack_top[];
 
 #define SIE_STIE (1ULL << 5)
 #define SSTATUS_SIE (1ULL << 1)
@@ -23,21 +24,22 @@ static void timer_init(void)
     sbi_set_timer(read_time() + TIMER_INTERVAL);
 }
 
-static void print_hex(uint64_t value)
+void print_hex(uint64_t value)
 {
     static const char digits[] = "0123456789abcdef";
-    for (int shift = 12; shift >= 0; shift -= 4)
+    for (int shift = 60; shift >= 0; shift -= 4)
         sbi_putchar(digits[(value >> shift) & 0xf]);
 }
 
 void trap_init()
 {
+    asm volatile("la t0, _stack_top\n\tcsrw sscratch, t0" ::: "t0");
     asm volatile(
         "csrw stvec, %0" 
         : 
         : "r"((uint64_t)trap_entry)
     );
-    timer_init();
+    /* timer_init(); -- skip for pgtable debug */
 }
 void trap_handler(struct trapframe *tf) {
     uint64_t scause = tf->scause;
@@ -132,15 +134,30 @@ void trap_handler(struct trapframe *tf) {
         }
         break;
     case 12: /* instruction page fault */
-        sbi_puts("[trap] instruction page fault\n");
+        sbi_puts("[trap] instruction page fault sepc=0x");
+        print_hex(tf->sepc);
+        sbi_puts(" stval=0x");
+        print_hex(tf->stval);
+        sbi_puts("\n");
         sbi_shutdown();
         break;
     case 13: /* load page fault */
-        sbi_puts("[trap] load page fault\n");
+        sbi_puts("[trap] load page fault sepc=0x");
+        print_hex(tf->sepc);
+        sbi_puts(" stval=0x");
+        print_hex(tf->stval);
+        sbi_puts("\n");
         sbi_shutdown();
         break;
     case 15: /* store/amo page fault */
-        sbi_puts("[trap] store page fault\n");
+        sbi_puts("[trap] store page fault sepc=0x");
+        print_hex(tf->sepc);
+        sbi_puts(" stval=0x");
+        print_hex(tf->stval);
+        sbi_puts(" sp=0x");
+        print_hex(tf->sp);
+        sbi_puts("\n");
+        sbi_puts("  Likely double-fault: trap_entry itself faulted\n");
         sbi_shutdown();
         break;
     default:
