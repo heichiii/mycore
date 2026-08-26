@@ -39,7 +39,7 @@ void trap_init()
         : 
         : "r"((uint64_t)trap_entry)
     );
-    /* timer_init(); -- skip for pgtable debug */
+    timer_init();
 }
 void trap_handler(struct trapframe *tf) {
     uint64_t scause = tf->scause;
