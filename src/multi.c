@@ -200,7 +200,8 @@ uint64_t load_user(pagetable_t root, const uint8_t *image,
             return 0;
         if (phdr[i].p_vaddr + phdr[i].p_memsz < phdr[i].p_vaddr)
             return 0;
-        if (phdr[i].p_vaddr == 0 && phdr[i].p_filesz > 0)
+        if (phdr[i].p_vaddr == 0 && !(phdr[i].p_flags & PF_X) &&
+            phdr[i].p_filesz > 0)
             continue;
 
         uint64_t dst_addr = phdr[i].p_vaddr + bias;
