@@ -70,6 +70,9 @@ void trap_handler(struct trapframe *tf) {
         case SYS_WRITE:
             sys_write(tf);
             break;
+        case SYS_READ:
+            sys_read(tf);
+            break;
         case SYS_sched_yield:
             sys_yield(tf);
             break;

@@ -33,9 +33,18 @@ struct sbiret sbi_ecall(int ext, int fid, unsigned long arg0,
     return ret;
 }
 
+#define SBI_LEGACY_GETCHAR    1
+
 void sbi_putchar(char c)
 {
     sbi_ecall(SBI_LEGACY_PUTCHAR, 0, (unsigned long)c, 0, 0, 0, 0, 0);
+}
+
+long sbi_getchar(void)
+{
+    struct sbiret ret = sbi_ecall(SBI_LEGACY_PUTCHAR, SBI_LEGACY_GETCHAR,
+                                  0, 0, 0, 0, 0, 0);
+    return ret.error;
 }
 
 void sbi_puts(const char *str)

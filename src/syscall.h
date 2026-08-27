@@ -6,6 +6,7 @@
 #define SYS_close          57
 #define SYS_lseek          62
 #define SYS_WRITE          64
+#define SYS_READ           63
 #define SYS_WRITEV         66
 #define SYS_ppoll          73
 #define SYS_readlinkat     78
@@ -25,5 +26,6 @@
 #define ESPIPE  29
 
 void sys_write(struct trapframe *tf);
+void sys_read(struct trapframe *tf);
 void sys_exit(struct trapframe *tf);
 void sys_yield(struct trapframe *tf);

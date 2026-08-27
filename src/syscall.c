@@ -16,6 +16,28 @@ void sys_write(struct trapframe *tf) {
     }
 }
 
+void sys_read(struct trapframe *tf) {
+    int fd = (int)tf->a0;
+    char *buf = (char *)tf->a1;
+    uint64_t count = tf->a2;
+
+    if (fd != 0) {
+        tf->a0 = -1;
+        return;
+    }
+
+    uint64_t n = 0;
+    while (n < count) {
+        long c = sbi_getchar();
+        if (c < 0)
+            continue;
+        buf[n++] = (char)c;
+        if (c == '\n')
+            break;
+    }
+    tf->a0 = n;
+}
+
 void sys_exit(struct trapframe *tf) {
     task_exit(tf);
 }
