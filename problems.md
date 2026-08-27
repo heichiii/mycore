@@ -82,3 +82,7 @@ struct sbiret sbi_ecall(int ext, int fid, unsigned long arg0,
 1. mymusl
 2. load way
 3. 
+## 8-27
+1. elf:EXEC DYN REL CORE; executable object so coredump
+2. pie mcmodel
+3. -Ttext spits the first segment
