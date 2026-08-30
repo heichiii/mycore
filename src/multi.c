@@ -3,26 +3,39 @@
 #include "trap.h"
 #include "page.h"
 #include "vm.h"
+#include "syscall.h"
 #include <stdint.h>
 
-extern uint8_t _user_elf_hello[];
-extern uint8_t _user_elf_yield0[];
-extern uint8_t _user_elf_yield1[];
-extern uint8_t _user_elf_yield2[];
+extern uint8_t _user_elf_ch4_mmap0[];
+extern uint8_t _user_elf_ch4_mmap1[];
+extern uint8_t _user_elf_ch4_mmap2[];
+extern uint8_t _user_elf_ch4_mmap3[];
+extern uint8_t _user_elf_ch4_sbrk[];
+extern uint8_t _user_elf_ch4_trace1[];
+extern uint8_t _user_elf_ch4_unmap0[];
+extern uint8_t _user_elf_ch4_unmap1[];
 
-#define MAX_TASKS 4
+#define MAX_TASKS 8
 #define TASK_SLOT_SIZE 0x00400000ULL
 #define TASK_STACK_SIZE 0x00010000ULL
 
 #define TASK0_BASE  0x80400000ULL
-#define TASK1_BASE  0x804c0000ULL
-#define TASK2_BASE  0x804e0000ULL
-#define TASK3_BASE  0x80500000ULL
+#define TASK1_BASE  0x80420000ULL
+#define TASK2_BASE  0x80440000ULL
+#define TASK3_BASE  0x80460000ULL
+#define TASK4_BASE  0x80480000ULL
+#define TASK5_BASE  0x804a0000ULL
+#define TASK6_BASE  0x804c0000ULL
+#define TASK7_BASE  0x804e0000ULL
 
 #define TASK0_STACK 0x80700000ULL
 #define TASK1_STACK 0x80b00000ULL
 #define TASK2_STACK 0x80f00000ULL
 #define TASK3_STACK 0x81300000ULL
+#define TASK4_STACK 0x81700000ULL
+#define TASK5_STACK 0x81b00000ULL
+#define TASK6_STACK 0x81f00000ULL
+#define TASK7_STACK 0x82300000ULL
 
 #define PT_LOAD    1
 #define PT_DYNAMIC 2
@@ -90,6 +103,8 @@ struct task {
     int id;
     enum task_state state;
     pagetable_t pagetable;
+    uint64_t brk;
+    uint64_t brk_base;
     struct trapframe context;
 };
 
@@ -100,14 +115,44 @@ struct program {
 };
 
 static const struct program programs[MAX_TASKS] = {
-    {_user_elf_yield0, TASK1_BASE, TASK1_STACK},
-    {_user_elf_yield1, TASK2_BASE, TASK2_STACK},
-    {_user_elf_yield2, TASK3_BASE, TASK3_STACK},
-    {_user_elf_hello,  TASK0_BASE, TASK0_STACK},
+    {_user_elf_ch4_mmap0,  TASK0_BASE, TASK0_STACK},
+    {_user_elf_ch4_mmap1,  TASK1_BASE, TASK1_STACK},
+    {_user_elf_ch4_mmap2,  TASK2_BASE, TASK2_STACK},
+    {_user_elf_ch4_mmap3,  TASK3_BASE, TASK3_STACK},
+    {_user_elf_ch4_sbrk,   TASK4_BASE, TASK4_STACK},
+    {_user_elf_ch4_trace1, TASK5_BASE, TASK5_STACK},
+    {_user_elf_ch4_unmap0, TASK6_BASE, TASK6_STACK},
+    {_user_elf_ch4_unmap1, TASK7_BASE, TASK7_STACK},
 };
 
 static struct task tasks[MAX_TASKS];
 static int current_task;
+
+#define USER_HEAP_BASE 0x90000000ULL
+
+pagetable_t current_pagetable(void)
+{
+    return tasks[current_task].pagetable;
+}
+
+long sys_sbrk(struct trapframe *tf)
+{
+    long n = (long)tf->a0;
+    struct task *t = &tasks[current_task];
+    uint64_t old = t->brk;
+    if (n == 0) {
+        tf->a0 = old;
+        return (long)old;
+    }
+    long new = (long)old + n;
+    if (new < 0 || (uint64_t)new < t->brk_base) {
+        tf->a0 = -1;
+        return -1;
+    }
+    t->brk = (uint64_t)new;
+    tf->a0 = old;
+    return (long)old;
+}
 
 
 static void memcpy(void *dst, const void *src, uint64_t n)
@@ -302,6 +347,8 @@ void task_init_all(void)
             : 0;
         tasks[i].id = i;
         tasks[i].state = entry ? TASK_READY : TASK_UNUSED;
+        tasks[i].brk = USER_HEAP_BASE;
+        tasks[i].brk_base = USER_HEAP_BASE;
         tasks[i].context.sepc = entry;
         tasks[i].context.sstatus = user_sstatus();
         uint64_t stack_start = programs[i].stack_top - TASK_STACK_SIZE;

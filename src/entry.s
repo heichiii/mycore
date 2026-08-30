@@ -119,18 +119,30 @@ enter_user:
 
 .section .rodata.user_elf, "a"
 .align 3
-.globl _user_elf_hello
-_user_elf_hello:
-	.incbin "mymusl/build/hello.elf"
-.globl _user_elf_yield0
-_user_elf_yield0:
-    .incbin "user/build/riscv64/ch3b_yield0"
-.globl _user_elf_yield1
-_user_elf_yield1:
-    .incbin "user/build/riscv64/ch3b_yield1"
-.globl _user_elf_yield2
-_user_elf_yield2:
-    .incbin "user/build/riscv64/ch3b_yield2"
+.globl _user_elf_ch4_mmap0
+_user_elf_ch4_mmap0:
+	.incbin "user/build/riscv64/ch4_mmap0"
+.globl _user_elf_ch4_mmap1
+_user_elf_ch4_mmap1:
+    .incbin "user/build/riscv64/ch4_mmap1"
+.globl _user_elf_ch4_mmap2
+_user_elf_ch4_mmap2:
+    .incbin "user/build/riscv64/ch4_mmap2"
+.globl _user_elf_ch4_mmap3
+_user_elf_ch4_mmap3:
+    .incbin "user/build/riscv64/ch4_mmap3"
+.globl _user_elf_ch4_sbrk
+_user_elf_ch4_sbrk:
+    .incbin "user/build/riscv64/ch4_sbrk"
+.globl _user_elf_ch4_trace1
+_user_elf_ch4_trace1:
+    .incbin "user/build/riscv64/ch4_trace1"
+.globl _user_elf_ch4_unmap0
+_user_elf_ch4_unmap0:
+    .incbin "user/build/riscv64/ch4_unmap0"
+.globl _user_elf_ch4_unmap1
+_user_elf_ch4_unmap1:
+    .incbin "user/build/riscv64/ch4_unmap1"
 
 .section .bss
 .align 4

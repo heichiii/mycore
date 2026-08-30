@@ -2,6 +2,7 @@
 #include "sbi.h"
 #include "syscall.h"
 #include "multi.h"
+#include "page.h"
 
 void trap_entry();
 extern uint8_t _stack_top[];
@@ -29,6 +30,43 @@ void print_hex(uint64_t value)
     static const char digits[] = "0123456789abcdef";
     for (int shift = 60; shift >= 0; shift -= 4)
         sbi_putchar(digits[(value >> shift) & 0xf]);
+}
+
+static void page_fault_handler(struct trapframe *tf)
+{
+    uint64_t va = tf->stval;
+    pagetable_t root = current_pagetable();
+
+    /* Only handle faults in the user address space (sv39: bit 38 == 0). */
+    if (va >= (1ULL << 38)) {
+        sbi_puts("[trap] kernel page fault va=0x");
+        print_hex(va);
+        sbi_puts("\n");
+        sbi_shutdown();
+        return;
+    }
+    /* Already mapped (e.g. a protection fault) - the task must go. */
+    if (vm_get_pte(root, va) & PTE_V) {
+        sbi_puts("[trap] protection fault va=0x");
+        print_hex(va);
+        sbi_puts("\n");
+        task_exit(tf);
+        return;
+    }
+
+    void *pa = alloc_page();
+    if (!pa) {
+        sbi_puts("[trap] out of memory on page fault\n");
+        sbi_shutdown();
+        return;
+    }
+    if (vm_map(root, va & ~(PAGE_SIZE - 1), (uint64_t)(uintptr_t)pa,
+               PAGE_SIZE, PTE_U | PTE_R | PTE_W | PTE_A | PTE_D) < 0) {
+        sbi_puts("[trap] map failed on page fault\n");
+        sbi_shutdown();
+        return;
+    }
+    vm_sfence();
 }
 
 void trap_init()
@@ -125,7 +163,19 @@ void trap_handler(struct trapframe *tf) {
             tf->a0 = -ENOSYS;
             break;
         case SYS_mmap:
-            tf->a0 = -ENOMEM;
+            sys_mmap(tf);
+            break;
+        case SYS_munmap:
+            sys_munmap(tf);
+            break;
+        case SYS_sbrk:
+            sys_sbrk(tf);
+            break;
+        case SYS_trace:
+            sys_trace(tf);
+            break;
+        case SYS_getpid:
+            tf->a0 = 1;
             break;
         default:
             sbi_puts("[trap] unknown syscall (a7=");
@@ -145,23 +195,8 @@ void trap_handler(struct trapframe *tf) {
         sbi_shutdown();
         break;
     case 13: /* load page fault */
-        sbi_puts("[trap] load page fault sepc=0x");
-        print_hex(tf->sepc);
-        sbi_puts(" stval=0x");
-        print_hex(tf->stval);
-        sbi_puts("\n");
-        sbi_shutdown();
-        break;
     case 15: /* store/amo page fault */
-        sbi_puts("[trap] store page fault sepc=0x");
-        print_hex(tf->sepc);
-        sbi_puts(" stval=0x");
-        print_hex(tf->stval);
-        sbi_puts(" sp=0x");
-        print_hex(tf->sp);
-        sbi_puts("\n");
-        sbi_puts("  Likely double-fault: trap_entry itself faulted\n");
-        sbi_shutdown();
+        page_fault_handler(tf);
         break;
     default:
         sbi_puts("[trap] unhandled exception (cause=");

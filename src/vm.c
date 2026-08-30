@@ -153,3 +153,20 @@ void vm_activate(pagetable_t root)
 {
     asm volatile("csrw satp, %0\n\tsfence.vma" :: "r"(vm_root_satp(root)) : "memory");
 }
+
+int vm_unmap(pagetable_t root, uint64_t va, uint64_t size)
+{
+    if ((va & 0xfff) || (size & 0xfff))
+        return -1;
+    for (uint64_t offset = 0; offset < size; offset += 4096) {
+        pte_t *entry = walk(root, va + offset, 0);
+        if (entry && (*entry & PTE_V))
+            *entry = 0;
+    }
+    return 0;
+}
+
+void vm_sfence(void)
+{
+    asm volatile("sfence.vma" ::: "memory");
+}

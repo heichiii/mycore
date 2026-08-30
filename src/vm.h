@@ -17,7 +17,9 @@ pagetable_t vm_create(void);
 pagetable_t vm_clone_kernel(void);
 int vm_map(pagetable_t root, uint64_t va, uint64_t pa,
            uint64_t size, uint64_t flags);
+int vm_unmap(pagetable_t root, uint64_t va, uint64_t size);
 void vm_activate(pagetable_t root);
+void vm_sfence(void);
 uint64_t vm_root_satp(pagetable_t root);
 uint64_t vm_translate(pagetable_t root, uint64_t va);
 uint64_t vm_get_pte(pagetable_t root, uint64_t va);
