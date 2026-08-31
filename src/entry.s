@@ -119,30 +119,39 @@ enter_user:
 
 .section .rodata.user_elf, "a"
 .align 3
-.globl _user_elf_ch4_mmap0
-_user_elf_ch4_mmap0:
-	.incbin "user/build/riscv64/ch4_mmap0"
-.globl _user_elf_ch4_mmap1
-_user_elf_ch4_mmap1:
-    .incbin "user/build/riscv64/ch4_mmap1"
-.globl _user_elf_ch4_mmap2
-_user_elf_ch4_mmap2:
-    .incbin "user/build/riscv64/ch4_mmap2"
-.globl _user_elf_ch4_mmap3
-_user_elf_ch4_mmap3:
-    .incbin "user/build/riscv64/ch4_mmap3"
-.globl _user_elf_ch4_sbrk
-_user_elf_ch4_sbrk:
-    .incbin "user/build/riscv64/ch4_sbrk"
-.globl _user_elf_ch4_trace1
-_user_elf_ch4_trace1:
-    .incbin "user/build/riscv64/ch4_trace1"
-.globl _user_elf_ch4_unmap0
-_user_elf_ch4_unmap0:
-    .incbin "user/build/riscv64/ch4_unmap0"
-.globl _user_elf_ch4_unmap1
-_user_elf_ch4_unmap1:
-    .incbin "user/build/riscv64/ch4_unmap1"
+.globl _user_elf_usershell
+_user_elf_usershell:
+	.incbin "user/build/riscv64/usershell"
+.globl _user_elf_ch2b_hello_world
+_user_elf_ch2b_hello_world:
+	.incbin "user/build/riscv64/ch2b_hello_world"
+.globl _user_elf_ch5_exit0
+_user_elf_ch5_exit0:
+	.incbin "user/build/riscv64/ch5_exit0"
+.globl _user_elf_ch5_exit1
+_user_elf_ch5_exit1:
+	.incbin "user/build/riscv64/ch5_exit1"
+.globl _user_elf_ch5_ppid
+_user_elf_ch5_ppid:
+	.incbin "user/build/riscv64/ch5_ppid"
+.globl _user_elf_ch5b_exit
+_user_elf_ch5b_exit:
+	.incbin "user/build/riscv64/ch5b_exit"
+.globl _user_elf_ch5b_exec_simple
+_user_elf_ch5b_exec_simple:
+	.incbin "user/build/riscv64/ch5b_exec_simple"
+.globl _user_elf_ch5b_forktest0
+_user_elf_ch5b_forktest0:
+	.incbin "user/build/riscv64/ch5b_forktest0"
+.globl _user_elf_ch5b_forktest1
+_user_elf_ch5b_forktest1:
+	.incbin "user/build/riscv64/ch5b_forktest1"
+.globl _user_elf_ch5b_forktest2
+_user_elf_ch5b_forktest2:
+	.incbin "user/build/riscv64/ch5b_forktest2"
+.globl _user_elf_ch5b_getpid
+_user_elf_ch5b_getpid:
+	.incbin "user/build/riscv64/ch5b_getpid"
 
 .section .bss
 .align 4

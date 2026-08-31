@@ -6,36 +6,26 @@
 #include "syscall.h"
 #include <stdint.h>
 
-extern uint8_t _user_elf_ch4_mmap0[];
-extern uint8_t _user_elf_ch4_mmap1[];
-extern uint8_t _user_elf_ch4_mmap2[];
-extern uint8_t _user_elf_ch4_mmap3[];
-extern uint8_t _user_elf_ch4_sbrk[];
-extern uint8_t _user_elf_ch4_trace1[];
-extern uint8_t _user_elf_ch4_unmap0[];
-extern uint8_t _user_elf_ch4_unmap1[];
+extern uint8_t _user_elf_usershell[];
+extern uint8_t _user_elf_ch2b_hello_world[];
+extern uint8_t _user_elf_ch5_exit0[];
+extern uint8_t _user_elf_ch5_exit1[];
+extern uint8_t _user_elf_ch5_ppid[];
+extern uint8_t _user_elf_ch5b_exit[];
+extern uint8_t _user_elf_ch5b_exec_simple[];
+extern uint8_t _user_elf_ch5b_forktest0[];
+extern uint8_t _user_elf_ch5b_forktest1[];
+extern uint8_t _user_elf_ch5b_forktest2[];
+extern uint8_t _user_elf_ch5b_getpid[];
 
-#define MAX_TASKS 8
+#define MAX_TASKS 64
 #define TASK_SLOT_SIZE 0x00400000ULL
 #define TASK_STACK_SIZE 0x00010000ULL
 
 #define TASK0_BASE  0x80400000ULL
-#define TASK1_BASE  0x80420000ULL
-#define TASK2_BASE  0x80440000ULL
-#define TASK3_BASE  0x80460000ULL
-#define TASK4_BASE  0x80480000ULL
-#define TASK5_BASE  0x804a0000ULL
-#define TASK6_BASE  0x804c0000ULL
-#define TASK7_BASE  0x804e0000ULL
-
 #define TASK0_STACK 0x80700000ULL
-#define TASK1_STACK 0x80b00000ULL
-#define TASK2_STACK 0x80f00000ULL
-#define TASK3_STACK 0x81300000ULL
-#define TASK4_STACK 0x81700000ULL
-#define TASK5_STACK 0x81b00000ULL
-#define TASK6_STACK 0x81f00000ULL
-#define TASK7_STACK 0x82300000ULL
+#define TASK_BASE_INC  0x20000ULL
+#define TASK_STACK_INC 0x400000ULL
 
 #define PT_LOAD    1
 #define PT_DYNAMIC 2
@@ -96,43 +86,77 @@ enum task_state {
     TASK_UNUSED,
     TASK_READY,
     TASK_RUNNING,
+    TASK_BLOCKED,
     TASK_EXITED,
 };
 
 struct task {
     int id;
+    int parent_id;
     enum task_state state;
     pagetable_t pagetable;
     uint64_t brk;
     uint64_t brk_base;
+    uint64_t exit_code;
     struct trapframe context;
 };
 
-struct program {
+struct program_entry {
+    const char *name;
     const uint8_t *image;
-    uint64_t runtime_base;
-    uint64_t stack_top;
 };
 
-static const struct program programs[MAX_TASKS] = {
-    {_user_elf_ch4_mmap0,  TASK0_BASE, TASK0_STACK},
-    {_user_elf_ch4_mmap1,  TASK1_BASE, TASK1_STACK},
-    {_user_elf_ch4_mmap2,  TASK2_BASE, TASK2_STACK},
-    {_user_elf_ch4_mmap3,  TASK3_BASE, TASK3_STACK},
-    {_user_elf_ch4_sbrk,   TASK4_BASE, TASK4_STACK},
-    {_user_elf_ch4_trace1, TASK5_BASE, TASK5_STACK},
-    {_user_elf_ch4_unmap0, TASK6_BASE, TASK6_STACK},
-    {_user_elf_ch4_unmap1, TASK7_BASE, TASK7_STACK},
+static struct program_entry program_registry[] = {
+    {"usershell",          _user_elf_usershell},
+    {"ch2b_hello_world",   _user_elf_ch2b_hello_world},
+    {"ch5_exit0",          _user_elf_ch5_exit0},
+    {"ch5_exit1",          _user_elf_ch5_exit1},
+    {"ch5_ppid",           _user_elf_ch5_ppid},
+    {"ch5b_exit",          _user_elf_ch5b_exit},
+    {"ch5b_exec_simple",   _user_elf_ch5b_exec_simple},
+    {"ch5b_forktest0",     _user_elf_ch5b_forktest0},
+    {"ch5b_forktest1",     _user_elf_ch5b_forktest1},
+    {"ch5b_forktest2",     _user_elf_ch5b_forktest2},
+    {"ch5b_getpid",        _user_elf_ch5b_getpid},
+    {0, 0}
 };
+
+static int k_strcmp(const char *a, const char *b)
+{
+    while (*a && *a == *b) { a++; b++; }
+    return *(unsigned char *)a - *(unsigned char *)b;
+}
+
+static const uint8_t *find_program(const char *name)
+{
+    for (int i = 0; program_registry[i].name; i++) {
+        if (k_strcmp(name, program_registry[i].name) == 0)
+            return program_registry[i].image;
+    }
+    return 0;
+}
 
 static struct task tasks[MAX_TASKS];
 static int current_task;
 
 #define USER_HEAP_BASE 0x90000000ULL
 
+static uint64_t task_runtime_base(int i) { return TASK0_BASE + i * TASK_BASE_INC; }
+static uint64_t task_stack_top(int i)    { return TASK0_STACK + i * TASK_STACK_INC; }
+
 pagetable_t current_pagetable(void)
 {
     return tasks[current_task].pagetable;
+}
+
+int task_getpid(void)
+{
+    return tasks[current_task].id;
+}
+
+int task_getppid(void)
+{
+    return tasks[current_task].parent_id;
 }
 
 long sys_sbrk(struct trapframe *tf)
@@ -304,8 +328,6 @@ uint64_t load_user(pagetable_t root, const uint8_t *image,
             }
         }
 
-        /* The static-PIE startup code would otherwise process the same
-         * relocations again using the file-relative DT_RELA address. */
         for (uint16_t i = 0; i < ehdr->e_phnum; i++) {
             if (phdr[i].p_type != PT_DYNAMIC)
                 continue;
@@ -337,34 +359,43 @@ static uint64_t user_sstatus(void)
     return value;
 }
 
+static int map_stack(pagetable_t pt, uint64_t stack_top)
+{
+    uint64_t stack_start = stack_top - TASK_STACK_SIZE;
+    for (uint64_t va = stack_start; va <= stack_top; va += PAGE_SIZE) {
+        void *page = alloc_page();
+        if (!page || vm_map(pt, va, (uint64_t)(uintptr_t)page, PAGE_SIZE,
+                           PTE_R | PTE_W | PTE_U | PTE_A | PTE_D) < 0)
+            return -1;
+    }
+    return 0;
+}
+
 void task_init_all(void)
 {
     for (int i = 0; i < MAX_TASKS; i++) {
-        tasks[i].pagetable = vm_clone_kernel();
-        uint64_t entry = tasks[i].pagetable
-            ? load_user(tasks[i].pagetable, programs[i].image,
-                        programs[i].runtime_base)
-            : 0;
         tasks[i].id = i;
-        tasks[i].state = entry ? TASK_READY : TASK_UNUSED;
-        tasks[i].brk = USER_HEAP_BASE;
-        tasks[i].brk_base = USER_HEAP_BASE;
-        tasks[i].context.sepc = entry;
-        tasks[i].context.sstatus = user_sstatus();
-        uint64_t stack_start = programs[i].stack_top - TASK_STACK_SIZE;
-        /* Map stack region including one page at top boundary */
-        for (uint64_t va = stack_start; entry && va <= programs[i].stack_top;
-             va += PAGE_SIZE) {
-            void *page = alloc_page();
-            if (!page || vm_map(tasks[i].pagetable, va,
-                               (uint64_t)(uintptr_t)page, PAGE_SIZE,
-                               PTE_R | PTE_W | PTE_U | PTE_A | PTE_D) < 0) {
-                tasks[i].state = TASK_UNUSED;
-            }
-        }
-        /* Stack grows down; initialize sp safely within mapped region */
-        tasks[i].context.sp = programs[i].stack_top - 16;
+        tasks[i].state = TASK_UNUSED;
+        tasks[i].pagetable = 0;
+        tasks[i].parent_id = -1;
     }
+
+    tasks[0].pagetable = vm_clone_kernel();
+    uint64_t entry = tasks[0].pagetable
+        ? load_user(tasks[0].pagetable, _user_elf_usershell, task_runtime_base(0))
+        : 0;
+    tasks[0].state = entry ? TASK_READY : TASK_UNUSED;
+    tasks[0].brk = USER_HEAP_BASE;
+    tasks[0].brk_base = USER_HEAP_BASE;
+    tasks[0].parent_id = -1;
+    tasks[0].exit_code = 0;
+    tasks[0].context.sepc = entry;
+    tasks[0].context.sstatus = user_sstatus();
+
+    if (entry && map_stack(tasks[0].pagetable, task_stack_top(0)) < 0)
+        tasks[0].state = TASK_UNUSED;
+    tasks[0].context.sp = task_stack_top(0) - 16;
+
     current_task = 0;
     tasks[0].state = TASK_RUNNING;
 }
@@ -411,9 +442,28 @@ void task_yield(struct trapframe *tf)
 
 void task_exit(struct trapframe *tf)
 {
-    int next;
+    int exit_code = (int)tf->a0;
+    int child_id = current_task;
+
     tasks[current_task].state = TASK_EXITED;
-    next = next_ready();
+    tasks[current_task].exit_code = exit_code;
+
+    int parent = tasks[current_task].parent_id;
+    if (parent >= 0 && parent < MAX_TASKS &&
+        tasks[parent].state == TASK_BLOCKED) {
+        tasks[parent].state = TASK_READY;
+        tasks[parent].context.a0 = child_id;
+
+        int *xstate = (int *)tasks[parent].context.a1;
+        if (xstate) {
+            pagetable_t pt = tasks[parent].pagetable;
+            uint64_t pa = vm_translate(pt, (uint64_t)xstate);
+            if (pa)
+                *(int *)(uintptr_t)pa = exit_code;
+        }
+    }
+
+    int next = next_ready();
     if (next < 0) {
         sbi_puts("[kernel] all tasks exited\n");
         sbi_shutdown();
@@ -423,4 +473,102 @@ void task_exit(struct trapframe *tf)
     tasks[current_task].state = TASK_RUNNING;
     vm_activate(tasks[current_task].pagetable);
     *tf = tasks[current_task].context;
+}
+
+void task_fork(struct trapframe *tf)
+{
+    int child = -1;
+    for (int i = 0; i < MAX_TASKS; i++) {
+        if (tasks[i].state == TASK_UNUSED) {
+            child = i;
+            break;
+        }
+    }
+    if (child < 0) {
+        tf->a0 = -1;
+        return;
+    }
+
+    pagetable_t child_pt = vm_clone_deep(tasks[current_task].pagetable);
+    if (!child_pt) {
+        tf->a0 = -1;
+        return;
+    }
+
+    tasks[child].pagetable = child_pt;
+    tasks[child].state = TASK_READY;
+    tasks[child].parent_id = current_task;
+    tasks[child].brk = tasks[current_task].brk;
+    tasks[child].brk_base = tasks[current_task].brk_base;
+    tasks[child].exit_code = 0;
+    tasks[child].context = tasks[current_task].context;
+    tasks[child].context.a0 = 0;
+
+    tf->a0 = child;
+}
+
+void task_exec(struct trapframe *tf)
+{
+    const char *name = (const char *)tf->a0;
+
+    const uint8_t *image = find_program(name);
+    if (!image) {
+        tf->a0 = -1;
+        return;
+    }
+
+    pagetable_t new_pt = vm_clone_kernel();
+    if (!new_pt) {
+        tf->a0 = -1;
+        return;
+    }
+
+    uint64_t runtime_base = task_runtime_base(current_task);
+    uint64_t entry = load_user(new_pt, image, runtime_base);
+    if (!entry) {
+        tf->a0 = -1;
+        return;
+    }
+
+    uint64_t stop = task_stack_top(current_task);
+    if (map_stack(new_pt, stop) < 0) {
+        tf->a0 = -1;
+        return;
+    }
+
+    tasks[current_task].pagetable = new_pt;
+    vm_activate(new_pt);
+
+    tasks[current_task].brk = USER_HEAP_BASE;
+    tasks[current_task].brk_base = USER_HEAP_BASE;
+    tf->sepc = entry;
+    tf->sp = stop - 16;
+    tf->a0 = 0;
+}
+
+void task_wait(struct trapframe *tf)
+{
+    for (int i = 0; i < MAX_TASKS; i++) {
+        if (tasks[i].state == TASK_EXITED &&
+            tasks[i].parent_id == current_task) {
+            int child_pid = tasks[i].id;
+            int exit_code = tasks[i].exit_code;
+            tasks[i].state = TASK_UNUSED;
+            tasks[i].parent_id = -1;
+
+            int *xstate = (int *)tf->a1;
+            if (xstate) {
+                pagetable_t pt = tasks[current_task].pagetable;
+                uint64_t pa = vm_translate(pt, (uint64_t)xstate);
+                if (pa)
+                    *(int *)(uintptr_t)pa = exit_code;
+            }
+
+            tf->a0 = child_pid;
+            return;
+        }
+    }
+
+    tasks[current_task].state = TASK_BLOCKED;
+    task_schedule(tf);
 }

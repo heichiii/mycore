@@ -12,10 +12,17 @@ OBJ = build/entry.o build/main.o build/multi.o build/page.o build/sbi.o build/sy
 
 all: elf
 
-USR_ELF = user/build/riscv64/ch4_mmap0 user/build/riscv64/ch4_mmap1 \
-          user/build/riscv64/ch4_mmap2 user/build/riscv64/ch4_mmap3 \
-          user/build/riscv64/ch4_sbrk  user/build/riscv64/ch4_trace1 \
-          user/build/riscv64/ch4_unmap0 user/build/riscv64/ch4_unmap1
+USR_ELF = user/build/riscv64/usershell \
+          user/build/riscv64/ch2b_hello_world \
+          user/build/riscv64/ch5_exit0 \
+          user/build/riscv64/ch5_exit1 \
+          user/build/riscv64/ch5_ppid \
+          user/build/riscv64/ch5b_exit \
+          user/build/riscv64/ch5b_exec_simple \
+          user/build/riscv64/ch5b_forktest0 \
+          user/build/riscv64/ch5b_forktest1 \
+          user/build/riscv64/ch5b_forktest2 \
+          user/build/riscv64/ch5b_getpid
 
 build/entry.o: src/entry.s $(USR_ELF)
 	mkdir -p build

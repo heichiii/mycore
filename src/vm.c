@@ -170,3 +170,51 @@ void vm_sfence(void)
 {
     asm volatile("sfence.vma" ::: "memory");
 }
+
+static void kmemcpy(void *dst, const void *src, uint64_t n)
+{
+    char *d = (char *)dst;
+    const char *s = (const char *)src;
+    for (uint64_t i = 0; i < n; i++) d[i] = s[i];
+}
+
+static int clone_deep(pagetable_t dst, pagetable_t src, int level)
+{
+    for (int i = 0; i < PTE_PER_PAGE; i++) {
+        if (!(src[i] & PTE_V))
+            continue;
+        if (level > 0 && !leaf(src[i])) {
+            pagetable_t child = (pagetable_t)alloc_page_table();
+            if (!child)
+                return -1;
+            dst[i] = pa_pte((uint64_t)(uintptr_t)child) | PTE_V;
+            if (clone_deep(child,
+                           (pagetable_t)(uintptr_t)pte_pa(src[i]),
+                           level - 1) < 0)
+                return -1;
+        } else {
+            if (src[i] & PTE_U) {
+                uint64_t src_pa = pte_pa(src[i]);
+                void *new_page = alloc_page();
+                if (!new_page)
+                    return -1;
+                kmemcpy(new_page, (void *)(uintptr_t)src_pa, PAGE_SIZE);
+                dst[i] = pa_pte((uint64_t)(uintptr_t)new_page) |
+                         (src[i] & 0x3FF);
+            } else {
+                dst[i] = src[i];
+            }
+        }
+    }
+    return 0;
+}
+
+pagetable_t vm_clone_deep(pagetable_t src)
+{
+    pagetable_t dst = vm_create();
+    if (!dst)
+        return 0;
+    if (clone_deep(dst, src, 2) < 0)
+        return 0;
+    return dst;
+}

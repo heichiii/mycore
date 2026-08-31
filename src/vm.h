@@ -23,3 +23,4 @@ void vm_sfence(void);
 uint64_t vm_root_satp(pagetable_t root);
 uint64_t vm_translate(pagetable_t root, uint64_t va);
 uint64_t vm_get_pte(pagetable_t root, uint64_t va);
+pagetable_t vm_clone_deep(pagetable_t src);

@@ -19,9 +19,12 @@
 #define SYS_rt_tgsigqueueinfo 240
 #define SYS_clone          220
 #define SYS_getpid         172
+#define SYS_getppid        173
 #define SYS_munmap         215
 #define SYS_sbrk           214
 #define SYS_mmap          222
+#define SYS_execve        221
+#define SYS_wait4         260
 #define SYS_trace          410
 
 #define ENOSYS  38

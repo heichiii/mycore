@@ -155,8 +155,7 @@ void trap_handler(struct trapframe *tf) {
             tf->a0 = 0;
             break;
         case SYS_clone:
-            /* fork/clone is not implemented by this scheduler yet. */
-            tf->a0 = -ENOSYS;
+            task_fork(tf);
             break;
         case SYS_rt_tgsigqueueinfo:
             /* Signals are not implemented yet; report the standard error. */
@@ -175,8 +174,17 @@ void trap_handler(struct trapframe *tf) {
             sys_trace(tf);
             break;
         case SYS_getpid:
-            tf->a0 = 1;
+            tf->a0 = task_getpid();
             break;
+        case SYS_getppid:
+            tf->a0 = task_getppid();
+            break;
+        case SYS_execve:
+            task_exec(tf);
+            return;
+        case SYS_wait4:
+            task_wait(tf);
+            return;
         default:
             sbi_puts("[trap] unknown syscall (a7=");
             sbi_puts("0x");
